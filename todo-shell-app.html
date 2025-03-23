@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shell Todo</title>
+    <style>
+        :root {
+            --bg-color: #1e1e1e;
+            --text-color: #f0f0f0;
+            --prompt-color: #50fa7b;
+            --high-priority: #ff5555;
+            --medium-priority: #ffb86c;
+            --low-priority: #50fa7b;
+            --header-color: #bd93f9;
+            --border-color: #6272a4;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Courier New', monospace;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+
+        .header {
+            border-bottom: 1px solid var(--border-color);
+            padding: 10px 0;
+            color: var(--header-color);
+        }
+
+        .todos-container {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 10px 0;
+        }
+
+        .todo-item {
+            padding: 5px;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            border-radius: 3px;
+        }
+
+        .todo-text {
+            flex-grow: 1;
+            margin-left: 10px;
+        }
+
+        .high-priority {
+            border-left: 5px solid var(--high-priority);
+        }
+
+        .medium-priority {
+            border-left: 5px solid var(--medium-priority);
+        }
+
+        .low-priority {
+            border-left: 5px solid var(--low-priority);
+        }
+
+        .priority-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+
+        .high {
+            background-color: var(--high-priority);
+        }
+
+        .medium {
+            background-color: var(--medium-priority);
+        }
+
+        .low {
+            background-color: var(--low-priority);
+        }
+
+        .command-line {
+            display: flex;
+            padding: 10px 0;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .prompt {
+            color: var(--prompt-color);
+            margin-right: 10px;
+        }
+
+        #task-input {
+            background-color: transparent;
+            border: none;
+            color: var(--text-color);
+            font-family: 'Courier New', monospace;
+            flex-grow: 1;
+            outline: none;
+            font-size: 16px;
+        }
+
+        .actions {
+            display: flex;
+            gap: 5px;
+        }
+
+        .dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            background-color: var(--bg-color);
+            min-width: 120px;
+            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.5);
+            border: 1px solid var(--border-color);
+            z-index: 1;
+            bottom: 30px;
+            left: 0;
+        }
+
+        .dropdown-item {
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+
+        .dropdown-item:hover {
+            background-color: #2a2a2a;
+        }
+
+        button {
+            background-color: transparent;
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            padding: 3px 8px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+        }
+
+        button:hover {
+            background-color: #2a2a2a;
+        }
+
+        .delete-btn {
+            margin-left: 10px;
+            border: none;
+            color: #ff5555;
+        }
+
+        .help-text {
+            color: #6272a4;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #2c2c2c;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #555;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #777;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Shell Todo</h1>
+            <div class="help-text">
+                Type a task and press Enter. Include "HIGH", "MID", or "LOW" to set priority.
+            </div>
+        </div>
+        
+        <div class="todos-container" id="todos-container">
+            <!-- Todo items will be added here dynamically -->
+        </div>
+        
+        <div class="command-line">
+            <div class="prompt">$</div>
+            <input type="text" id="task-input" placeholder="Type task here..." autofocus>
+        </div>
+    </div>
+
+    <script>
+        // Initialize todos array
+        let todos = [];
+        
+        const taskInput = document.getElementById('task-input');
+        const todosContainer = document.getElementById('todos-container');
+        
+        // Load todos on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadTodos();
+            renderTodos();
+        });
+        
+        // Add event listener for Enter key
+        taskInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                addTodo();
+            }
+        });
+        
+        // Function to safely check if localStorage is available
+        function isLocalStorageAvailable() {
+            try {
+                const test = 'test';
+                localStorage.setItem(test, test);
+                localStorage.removeItem(test);
+                return true;
+            } catch(e) {
+                return false;
+            }
+        }
+        
+        // Function to load todos from localStorage
+        function loadTodos() {
+            if (isLocalStorageAvailable()) {
+                const storedTodos = localStorage.getItem('shellTodos');
+                if (storedTodos) {
+                    try {
+                        todos = JSON.parse(storedTodos);
+                    } catch (e) {
+                        console.error('Error parsing todos from localStorage:', e);
+                        todos = [];
+                    }
+                }
+            }
+        }
+        
+        function addTodo() {
+            const taskText = taskInput.value.trim();
+            if (taskText === '') return;
+            
+            // Check for priority keywords in the text
+            let priority = 'medium'; // Default priority
+            let cleanedText = taskText;
+            
+            // Case-insensitive search for priority labels
+            const highMatch = taskText.match(/\bHIGH\b/i);
+            const midMatch = taskText.match(/\bMID\b/i);
+            const lowMatch = taskText.match(/\bLOW\b/i);
+            
+            if (highMatch) {
+                priority = 'high';
+                cleanedText = taskText.replace(/\bHIGH\b/i, '').trim();
+            } else if (midMatch) {
+                priority = 'medium';
+                cleanedText = taskText.replace(/\bMID\b/i, '').trim();
+            } else if (lowMatch) {
+                priority = 'low';
+                cleanedText = taskText.replace(/\bLOW\b/i, '').trim();
+            }
+            
+            // Add new todo to the array
+            const newTodo = {
+                id: Date.now().toString(),
+                text: cleanedText,
+                priority: priority,
+                timestamp: new Date().toISOString()
+            };
+            
+            todos.push(newTodo);
+            
+            // Save to localStorage
+            saveTodos();
+            
+            // Clear input
+            taskInput.value = '';
+            
+            // Render the updated list
+            renderTodos();
+        }
+        
+        function deleteTodo(id) {
+            todos = todos.filter(todo => todo.id !== id);
+            saveTodos();
+            renderTodos();
+        }
+        
+        function changePriority(id, newPriority) {
+            todos = todos.map(todo => {
+                if (todo.id === id) {
+                    return { ...todo, priority: newPriority };
+                }
+                return todo;
+            });
+            
+            saveTodos();
+            renderTodos();
+        }
+        
+        function saveTodos() {
+            if (isLocalStorageAvailable()) {
+                try {
+                    localStorage.setItem('shellTodos', JSON.stringify(todos));
+                } catch (e) {
+                    console.error('Error saving todos to localStorage:', e);
+                    
+                    // Show a brief error message
+                    const errorMsg = document.createElement('div');
+                    errorMsg.textContent = 'Error saving to localStorage. Private browsing mode?';
+                    errorMsg.style.color = 'var(--high-priority)';
+                    errorMsg.style.padding = '5px';
+                    errorMsg.style.marginBottom = '10px';
+                    
+                    todosContainer.insertBefore(errorMsg, todosContainer.firstChild);
+                    
+                    // Remove the error message after 3 seconds
+                    setTimeout(() => {
+                        if (errorMsg.parentNode === todosContainer) {
+                            todosContainer.removeChild(errorMsg);
+                        }
+                    }, 3000);
+                }
+            }
+        }
+        
+        function renderTodos() {
+            // Sort todos by priority: high, medium, low
+            const sortedTodos = [...todos].sort((a, b) => {
+                const priorityOrder = { high: 0, medium: 1, low: 2 };
+                return priorityOrder[a.priority] - priorityOrder[b.priority];
+            });
+            
+            // Clear container
+            todosContainer.innerHTML = '';
+            
+            // Add each todo item
+            sortedTodos.forEach(todo => {
+                const todoItem = document.createElement('div');
+                todoItem.classList.add('todo-item', `${todo.priority}-priority`);
+                
+                const priorityIndicator = document.createElement('div');
+                priorityIndicator.classList.add('priority-indicator', todo.priority);
+                
+                const todoText = document.createElement('div');
+                todoText.classList.add('todo-text');
+                todoText.textContent = todo.text;
+                
+                const actionsDiv = document.createElement('div');
+                actionsDiv.classList.add('actions');
+                
+                // Priority button with dropdown
+                const priorityDropdown = document.createElement('div');
+                priorityDropdown.classList.add('dropdown');
+                
+                const priorityBtn = document.createElement('button');
+                priorityBtn.textContent = 'Priority';
+                priorityBtn.onclick = function(event) {
+                    // Toggle dropdown
+                    const content = this.nextElementSibling;
+                    content.style.display = content.style.display === 'block' ? 'none' : 'block';
+                    event.stopPropagation(); // Prevent click from being detected by document
+                };
+                
+                const dropdownContent = document.createElement('div');
+                dropdownContent.classList.add('dropdown-content');
+                
+                // Priority options
+                const priorities = [
+                    { name: 'HIGH', value: 'high', color: 'var(--high-priority)' },
+                    { name: 'MID', value: 'medium', color: 'var(--medium-priority)' },
+                    { name: 'LOW', value: 'low', color: 'var(--low-priority)' }
+                ];
+                
+                priorities.forEach(p => {
+                    const option = document.createElement('div');
+                    option.classList.add('dropdown-item');
+                    option.textContent = p.name;
+                    option.style.color = p.color;
+                    option.onclick = function(event) {
+                        changePriority(todo.id, p.value);
+                        dropdownContent.style.display = 'none';
+                        event.stopPropagation(); // Prevent click from being detected by document
+                    };
+                    dropdownContent.appendChild(option);
+                });
+                
+                priorityDropdown.appendChild(priorityBtn);
+                priorityDropdown.appendChild(dropdownContent);
+                
+                // Delete button
+                const deleteBtn = document.createElement('button');
+                deleteBtn.textContent = 'Delete';
+                deleteBtn.classList.add('delete-btn');
+                deleteBtn.onclick = function() {
+                    deleteTodo(todo.id);
+                };
+                
+                actionsDiv.appendChild(priorityDropdown);
+                actionsDiv.appendChild(deleteBtn);
+                
+                todoItem.appendChild(priorityIndicator);
+                todoItem.appendChild(todoText);
+                todoItem.appendChild(actionsDiv);
+                
+                todosContainer.appendChild(todoItem);
+            });
+            
+            // Add event listener to close dropdowns when clicking outside
+            document.addEventListener('click', function(event) {
+                const dropdowns = document.getElementsByClassName('dropdown-content');
+                for (let i = 0; i < dropdowns.length; i++) {
+                    if (dropdowns[i].style.display === 'block') {
+                        dropdowns[i].style.display = 'none';
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
